@@ -1,48 +1,53 @@
-const fs = require("fs");
-const path = require("path");
+const fetch = require("node-fetch");
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Method not allowed" }),
-    };
+    return { statusCode: 405, body: "Method Not Allowed" };
   }
 
-  try {
-    const body = JSON.parse(event.body);
-    const text = body.text?.trim();
+  const body = JSON.parse(event.body);
 
-    if (!text) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Text required" }) };
-    }
+  const repo = "https://github.com/CodeWithMohaimin/admin-panel-note"; // 👈 এখানে তোমার repo
+  const filePath = "public/data/entries.json"; 
+  const token = process.env.GITHUB_TOKEN;
 
-    // Path to JSON file
-    const filePath = path.join(__dirname, "../../data/entries.json");
+  // GitHub থেকে ফাইল পড়া
+  const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+    headers: { Authorization: `token ${token}` }
+  });
+  const fileData = await getRes.json();
 
-    // Read old data
-    let data = [];
-    if (fs.existsSync(filePath)) {
-      data = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    }
+  const content = Buffer.from(fileData.content, "base64").toString("utf8");
+  const entries = JSON.parse(content);
 
-    // Add new entry with timestamp
-    const newEntry = {
-      id: Date.now(),
-      text,
-      date: new Date().toISOString(),
-    };
+  // নতুন entry অ্যাড করো
+  const newEntry = {
+    id: Date.now(),
+    text: body.text,
+    createdAt: new Date().toISOString(),
+  };
+  entries.unshift(newEntry);
 
-    data.unshift(newEntry); // add to top
+  // Update GitHub file
+  const updateRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: "Update entries.json",
+      content: Buffer.from(JSON.stringify(entries, null, 2)).toString("base64"),
+      sha: fileData.sha,
+    }),
+  });
 
-    // Write back to JSON
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(newEntry),
-    };
-  } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+  if (!updateRes.ok) {
+    return { statusCode: 500, body: "Failed to update file" };
   }
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ success: true, entry: newEntry }),
+  };
 };
