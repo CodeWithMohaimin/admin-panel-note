@@ -7,13 +7,18 @@ exports.handler = async (event) => {
 
   const body = JSON.parse(event.body);
 
-  const repo = "https://github.com/CodeWithMohaimin/admin-panel-note"; // 👈 এখানে তোমার repo
+  const repo = "CodeWithMohaimin/admin-panel-note"; // 👈 এখানে তোমার repo
   const filePath = "public/data/entries.json"; 
   const token = process.env.GITHUB_TOKEN;
 
   // GitHub থেকে ফাইল পড়া
   const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
-    headers: { Authorization: `token ${token}` }
+    headers: {
+  Authorization: `Bearer ${token}`,
+  "Content-Type": "application/json",
+  "Accept": "application/vnd.github+json"
+}
+
   });
   const fileData = await getRes.json();
 
